@@ -11,7 +11,7 @@ from api.models import *
 from api.serializers import *
 from api.request_serializers import *
 from api.sklec.RSKCore import RSKCore
-
+from api.sklec.NCCore import NCCore
 
 def JsonResponseOK(data=None):
     return JsonResponse({
@@ -63,7 +63,6 @@ class GetVisContent(views.APIView):
         if not validation.is_valid():
             return JsonResponseError(validation.errors)
         params = validation.data
-        print(request.query_params)
         uuid = kwargs['uuid']
         try:
             visfile = VisFile.objects.get(uuid=uuid)
@@ -86,7 +85,6 @@ class GetVisContent(views.APIView):
 
             try:
                 core = RSKCore(visfile.file.path)
-                print(params)
                 if params.get('target_samples'):
                     core.TARGET_VIS_LENGTH = int(params['target_samples'])
                 vis_data = core.get_all_channel_data(start_time=datetime_start, end_time=datetime_end)
@@ -106,6 +104,30 @@ class GetVisContent(views.APIView):
             except Exception as e:
                 print(traceback.format_exc())
                 return JsonResponseError(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        elif visfile.format == VisFile.FileFormat.NCF:
+
+            try:
+                core = NCCore(visfile.file.path)
+                vis_data = core.get_all_channel_data()
+                core.close()
+                # print(vis_data)
+                return JsonResponseOK({
+                    'vis_data': vis_data,
+                    'channels': [name for name in vis_data.keys()],
+                    'channel_labels': core.get_channels(),
+                    # 'sample_count': len(vis_data[visfile.first_dimension_name]),
+                    # 'datetime_start': vis_data[visfile.first_dimension_name][0],
+                    # 'datetime_end': vis_data[visfile.first_dimension_name][-1],
+                    'file_name': visfile.file_name,
+                    'file_size': visfile.file_size,
+                    'first_dimension_name': visfile.first_dimension_name,
+                })
+
+            except Exception as e:
+                print(traceback.format_exc())
+                return JsonResponseError(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
         return JsonResponseError(f'Visfile format {visfile.format} currently not supported.')
 
